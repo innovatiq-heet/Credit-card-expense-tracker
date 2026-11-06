@@ -3,13 +3,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { ConfigProblem } from "@/components/ConfigProblem";
 import { Button, ErrorText, Field, Input, Panel } from "@/components/ui";
 import { errorMessage, supabase } from "@/lib/supabase";
 
 type Mode = "signIn" | "signUp" | "forgot";
 
 export function LoginForm() {
-  const { status } = useAuth();
+  const { status, problem } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next");
@@ -62,16 +63,7 @@ export function LoginForm() {
     }
   }
 
-  if (status === "unconfigured") {
-    return (
-      <Panel>
-        <p className="text-sm text-slate-600">
-          Supabase is not connected yet. Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code>.env.local</code> and restart.
-        </p>
-      </Panel>
-    );
-  }
+  if (status === "unconfigured") return <ConfigProblem problem={problem} />;
 
   return (
     <Panel className="p-6">

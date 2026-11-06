@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "./AuthProvider";
+import { ConfigProblem } from "./ConfigProblem";
 import { cx, Spinner } from "./ui";
 
 const NAV = [
@@ -19,7 +20,7 @@ function isActive(pathname: string, href: string) {
 
 /** Login guard + navigation for every signed-in page. */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, problem } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -27,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (status === "signedOut") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [status, pathname, router]);
 
-  if (status === "unconfigured") return <SetupNotice />;
+  if (status === "unconfigured") return <SetupNotice problem={problem} />;
   if (status !== "signedIn") return <Spinner />;
 
   return (
@@ -78,21 +79,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SetupNotice() {
+function SetupNotice({ problem }: { problem: string | null }) {
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
-      <h1 className="text-2xl font-bold text-slate-900">Connect Supabase</h1>
-      <p className="mt-2 text-slate-600">CardMates needs a Supabase project. Three steps:</p>
-      <ol className="mt-4 list-decimal space-y-2 pl-5 text-slate-700">
-        <li>
-          Run <code className="rounded bg-slate-100 px-1">supabase/schema.sql</code> in the Supabase SQL Editor.
-        </li>
-        <li>
-          Copy <code className="rounded bg-slate-100 px-1">.env.example</code> to{" "}
-          <code className="rounded bg-slate-100 px-1">.env.local</code> and paste your project URL and anon key.
-        </li>
-        <li>Restart the dev server.</li>
-      </ol>
+      <ConfigProblem problem={problem} />
     </div>
   );
 }

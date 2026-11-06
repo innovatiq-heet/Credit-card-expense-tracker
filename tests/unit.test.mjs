@@ -61,3 +61,57 @@ test("billing day 31 is clamped in short months", () => {
 test("no billing day → calendar month", () => {
   assert.deepEqual(currentCycle(null, null, new Date(2026, 10, 6)), { start: "2026-11-01", end: "2026-11-30", due: null });
 });
+
+// ---- Supabase settings: forgive copy-paste mistakes, refuse secret keys ----
+import { cleanSupabaseUrl, readSupabaseConfig } from "../src/lib/env.ts";
+
+const URL_OK = "https://fxnqaldvwdbpsnkgagnj.supabase.co";
+const KEY_OK = "sb_publishable_4BYmT2ni-DNuJo_-hFO-FQ_A2QxNA4F";
+
+test("Supabase URL is cleaned from common paste mistakes", () => {
+  for (const raw of [
+    URL_OK,
+    ` ${URL_OK}\n`,
+    `"${URL_OK}"`,
+    `'${URL_OK}'`,
+    `NEXT_PUBLIC_SUPABASE_URL=${URL_OK}`,
+    `${URL_OK}/rest/v1/`,
+    `${URL_OK}/`,
+    `${URL_OK} NEXT_PUBLIC_SUPABASE_ANON_KEY=${KEY_OK}`,
+    "fxnqaldvwdbpsnkgagnj.supabase.co",
+  ]) {
+    assert.equal(cleanSupabaseUrl(raw), URL_OK, JSON.stringify(raw));
+  }
+  assert.equal(cleanSupabaseUrl("http://127.0.0.1:54321"), "http://127.0.0.1:54321");
+  assert.equal(cleanSupabaseUrl("not a url"), null);
+  assert.equal(cleanSupabaseUrl(""), null);
+});
+
+test("the exact broken Netlify values now work", () => {
+  // Both lines pasted into the URL variable:
+  assert.deepEqual(readSupabaseConfig(`${URL_OK} NEXT_PUBLIC_SUPABASE_ANON_KEY=${KEY_OK}`, KEY_OK), { url: URL_OK, key: KEY_OK, problem: null });
+  // ...even if the key variable was left empty:
+  assert.deepEqual(readSupabaseConfig(`${URL_OK} NEXT_PUBLIC_SUPABASE_ANON_KEY=${KEY_OK}`, ""), { url: URL_OK, key: KEY_OK, problem: null });
+  // Quoted values / NAME= prefixes:
+  assert.deepEqual(readSupabaseConfig(`"${URL_OK}"`, `NEXT_PUBLIC_SUPABASE_ANON_KEY="${KEY_OK}"`), { url: URL_OK, key: KEY_OK, problem: null });
+});
+
+test("unusable settings give a clear message instead of crashing", () => {
+  assert.match(readSupabaseConfig(undefined, undefined).problem, /not set/);
+  assert.match(readSupabaseConfig("my project", KEY_OK).problem, /NEXT_PUBLIC_SUPABASE_URL is not a valid address/);
+  assert.match(readSupabaseConfig(URL_OK, "").problem, /ANON_KEY is missing/);
+  assert.match(readSupabaseConfig(URL_OK, "sb_secret_abc123").problem, /SECRET key/);
+  const serviceRole = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role: "service_role" })).toString("base64url")}.sig`;
+  assert.match(readSupabaseConfig(URL_OK, serviceRole).problem, /service_role/);
+  const anon = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role: "anon" })).toString("base64url")}.sig`;
+  assert.equal(readSupabaseConfig(URL_OK, anon).problem, null);
+});
+
+test("a key in an unfamiliar format is used as typed, not refused", () => {
+  assert.deepEqual(readSupabaseConfig(URL_OK, "some-future-key"), { url: URL_OK, key: "some-future-key", problem: null });
+  assert.deepEqual(readSupabaseConfig(URL_OK, ' NEXT_PUBLIC_SUPABASE_ANON_KEY="some-future-key" '), {
+    url: URL_OK,
+    key: "some-future-key",
+    problem: null,
+  });
+});

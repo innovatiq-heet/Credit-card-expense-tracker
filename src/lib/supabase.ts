@@ -1,21 +1,20 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { readSupabaseConfig } from "./env";
 
 // Public values – safe to ship to the browser. Security is enforced by
 // Row Level Security and the database functions in supabase/schema.sql.
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+// (Each variable must be written out in full so Next.js can build it in.)
+const config = readSupabaseConfig(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-export const isSupabaseConfigured = Boolean(url && key);
+/** Why Supabase can't be used, in plain words – or null when the settings are fine. */
+export const supabaseConfigProblem: string | null = config.problem;
+export const isSupabaseConfigured = config.problem === null;
 
 let client: SupabaseClient | null = null;
 
 export function supabase(): SupabaseClient {
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local",
-    );
-  }
-  if (!client) client = createClient(url, key);
+  if (config.problem !== null) throw new Error(config.problem);
+  if (!client) client = createClient(config.url, config.key);
   return client;
 }
 

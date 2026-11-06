@@ -2,11 +2,13 @@
 
 import type { User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { errorMessage, isSupabaseConfigured, supabase, supabaseConfigProblem } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
 type AuthState = {
   status: "loading" | "signedOut" | "signedIn" | "unconfigured";
+  /** When status is "unconfigured": what is wrong with the Supabase settings. */
+  problem: string | null;
   user: User | null;
   profile: Profile | null;
   refreshProfile: () => Promise<void>;
@@ -19,6 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [status, setStatus] = useState<AuthState["status"]>(isSupabaseConfigured ? "loading" : "unconfigured");
+  const [problem, setProblem] = useState<string | null>(supabaseConfigProblem);
 
   const loadProfile = useCallback(async (userId: string) => {
     const { data } = await supabase()
@@ -31,7 +34,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    const client = supabase();
+    let client: ReturnType<typeof supabase>;
+    try {
+      client = supabase();
+    } catch (e) {
+      // Never crash the whole app over bad settings – show what is wrong instead.
+      queueMicrotask(() => {
+        setProblem(errorMessage(e));
+        setStatus("unconfigured");
+      });
+      return;
+    }
 
     const apply = (next: User | null) => {
       setUser(next);
@@ -54,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ status, user, profile, refreshProfile, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ status, problem, user, profile, refreshProfile, signOut }}>{children}</AuthContext.Provider>
   );
 }
 
