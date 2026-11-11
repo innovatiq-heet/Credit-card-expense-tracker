@@ -2,20 +2,16 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ActivityList } from "@/components/ActivityList";
-import { useUserId } from "@/components/AuthProvider";
 import { cx, ErrorText, LinkButton, PageHeader, Spinner } from "@/components/ui";
 import { loadGroup, namer } from "@/lib/groupData";
+import { formatPaise, toPaise } from "@/lib/money";
 import { useAsync } from "@/lib/useAsync";
-import { BalancesTab } from "./BalancesTab";
 import { ExpensesTab } from "./ExpensesTab";
-import { MembersTab } from "./MembersTab";
+import { PeopleTab } from "./PeopleTab";
 
 const TABS = [
   { key: "expenses", label: "Expenses" },
-  { key: "balances", label: "Balances" },
-  { key: "members", label: "Members" },
-  { key: "activity", label: "Activity" },
+  { key: "people", label: "People & balances" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
@@ -23,7 +19,6 @@ export default function GroupPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const search = useSearchParams();
   const router = useRouter();
-  const me = useUserId();
   const { data, error, loading, reload } = useAsync(() => loadGroup(groupId), groupId);
 
   const requested = search.get("tab");
@@ -42,13 +37,22 @@ export default function GroupPage() {
     );
   }
 
-  const names = namer(data.members, me);
+  const names = namer(data.people);
+  const toCollect = data.balances.reduce((sum, b) => sum + Math.max(0, toPaise(b.balance)), 0);
 
   return (
     <div className="pb-16 sm:pb-0">
       <PageHeader
         title={data.group.name}
-        subtitle={`${data.activeMembers.length} members · ${data.sharedCards.length} shared cards`}
+        subtitle={
+          toCollect > 0 ? (
+            <>
+              To collect: <span className="font-semibold text-emerald-600">{formatPaise(toCollect)}</span>
+            </>
+          ) : (
+            `${data.people.length} ${data.people.length === 1 ? "person" : "people"} · all settled`
+          )
+        }
         action={
           <div className="hidden shrink-0 sm:block">
             <LinkButton href={`/groups/${groupId}/add`} className="py-2.5">
@@ -86,10 +90,8 @@ export default function GroupPage() {
 
       {error && <ErrorText>{error}</ErrorText>}
 
-      {tab === "expenses" && <ExpensesTab data={data} me={me} names={names} reload={reload} />}
-      {tab === "balances" && <BalancesTab data={data} me={me} names={names} reload={reload} />}
-      {tab === "members" && <MembersTab data={data} me={me} names={names} reload={reload} />}
-      {tab === "activity" && <ActivityList items={data.activity} nameOf={names.name} />}
+      {tab === "expenses" && <ExpensesTab data={data} names={names} reload={reload} />}
+      {tab === "people" && <PeopleTab data={data} names={names} reload={reload} />}
     </div>
   );
 }

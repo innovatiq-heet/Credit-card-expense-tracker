@@ -115,3 +115,21 @@ test("a key in an unfamiliar format is used as typed, not refused", () => {
     problem: null,
   });
 });
+
+// ---- WhatsApp reminder links ----
+import { whatsappLink, whatsappNumber } from "../src/lib/constants.ts";
+
+test("WhatsApp numbers get the India country code when missing", () => {
+  assert.equal(whatsappNumber("98765 43210"), "919876543210");
+  assert.equal(whatsappNumber("09876543210"), "919876543210");
+  assert.equal(whatsappNumber("+91 98765-43210"), "919876543210");
+  assert.equal(whatsappNumber("+44 20 7946 0958"), "442079460958");
+  assert.equal(whatsappNumber(""), null);
+  assert.equal(whatsappNumber(null), null);
+  assert.equal(whatsappNumber("123"), null);
+});
+
+test("WhatsApp link goes to the person's chat when a number is known", () => {
+  assert.equal(whatsappLink("Hi & bye", "9876543210"), "https://wa.me/919876543210?text=Hi%20%26%20bye");
+  assert.equal(whatsappLink("Hi", null), "https://wa.me/?text=Hi");
+});

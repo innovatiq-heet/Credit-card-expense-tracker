@@ -1,38 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { Button, cx, Empty, ErrorText, LinkButton, Panel, Select } from "@/components/ui";
+import { Button, Empty, ErrorText, LinkButton, Panel, Select } from "@/components/ui";
 import { category } from "@/lib/constants";
 import { formatDate, formatMonth, monthKey } from "@/lib/dates";
 import type { GroupData, Names } from "@/lib/groupData";
 import { formatPaise, sumPaise, toPaise } from "@/lib/money";
 import { errorMessage, run, supabase } from "@/lib/supabase";
-import type { Txn } from "@/lib/types";
+import type { Expense } from "@/lib/types";
 
-type Props = { data: GroupData; me: string; names: Names; reload: () => void };
+type Props = { data: GroupData; names: Names; reload: () => void };
 
-export function ExpensesTab({ data, me, names, reload }: Props) {
+const myShareOf = (e: Expense) => toPaise(e.expense_shares.find((s) => s.person_id === null)?.amount ?? 0);
+
+export function ExpensesTab({ data, names, reload }: Props) {
   const [month, setMonth] = useState("all");
   const [source, setSource] = useState("all"); // "all" | "cash" | card id
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const months = [...new Set(data.txns.map((t) => monthKey(t.txn_date)))];
-  const usedCardIds = [...new Set(data.txns.flatMap((t) => (t.card_id ? [t.card_id] : [])))];
+  const months = [...new Set(data.expenses.map((e) => monthKey(e.txn_date)))];
+  const usedCardIds = [...new Set(data.expenses.flatMap((e) => (e.card_id ? [e.card_id] : [])))];
 
-  const visible = data.txns.filter(
-    (t) =>
-      (month === "all" || monthKey(t.txn_date) === month) &&
-      (source === "all" || (source === "cash" ? t.card_id === null : t.card_id === source)),
+  const visible = data.expenses.filter(
+    (e) =>
+      (month === "all" || monthKey(e.txn_date) === month) &&
+      (source === "all" || (source === "cash" ? e.card_id === null : e.card_id === source)),
   );
 
-  if (data.txns.length === 0) {
+  if (data.expenses.length === 0) {
     return (
       <Empty title="No expenses yet">
-        <p>
-          {data.sharedCards.length === 0
-            ? "Card owners can share a card with this group from the Cards page. Cash / UPI expenses work too."
-            : "Add the first purchase made on a shared card."}
-        </p>
+        <p>Add an expense and pick the people who share it. You can add new people right in the form.</p>
         <LinkButton href={`/groups/${data.group.id}/add`} className="mt-3">
           + Add expense
         </LinkButton>
@@ -51,7 +49,7 @@ export function ExpensesTab({ data, me, names, reload }: Props) {
             </option>
           ))}
         </Select>
-        <Select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Card">
+        <Select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Paid with">
           <option value="all">All cards & cash</option>
           {usedCardIds.map((id) => (
             <option key={id} value={id}>
@@ -62,21 +60,20 @@ export function ExpensesTab({ data, me, names, reload }: Props) {
         </Select>
       </div>
 
-      <Summary txns={visible} me={me} data={data} names={names} />
+      <Summary expenses={visible} data={data} names={names} />
 
       {visible.length === 0 ? (
         <Empty title="Nothing here for this filter" />
       ) : (
         <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
-          {visible.map((t) => (
-            <TxnRow
-              key={t.id}
-              txn={t}
-              me={me}
+          {visible.map((e) => (
+            <ExpenseRow
+              key={e.id}
+              expense={e}
               data={data}
               names={names}
-              open={openId === t.id}
-              onToggle={() => setOpenId(openId === t.id ? null : t.id)}
+              open={openId === e.id}
+              onToggle={() => setOpenId(openId === e.id ? null : e.id)}
               reload={reload}
             />
           ))}
@@ -86,30 +83,34 @@ export function ExpensesTab({ data, me, names, reload }: Props) {
   );
 }
 
-function Summary({ txns, me, data, names }: { txns: Txn[]; me: string; data: GroupData; names: Names }) {
-  const total = sumPaise(txns.map((t) => t.amount));
-  const mine = sumPaise(txns.flatMap((t) => t.transaction_splits.filter((s) => s.user_id === me).map((s) => s.amount)));
+function Summary({ expenses, data, names }: { expenses: Expense[]; data: GroupData; names: Names }) {
+  const total = sumPaise(expenses.map((e) => e.amount));
+  const mine = expenses.reduce((sum, e) => sum + myShareOf(e), 0);
 
   const byCategory = new Map<string, number>();
   const bySource = new Map<string, number>();
-  for (const t of txns) {
-    byCategory.set(t.category, (byCategory.get(t.category) ?? 0) + toPaise(t.amount));
-    const key = t.card_id ? names.card(data.cards.get(t.card_id)) : `Cash / UPI · ${names.name(t.paid_by)}`;
-    bySource.set(key, (bySource.get(key) ?? 0) + toPaise(t.amount));
+  for (const e of expenses) {
+    byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + toPaise(e.amount));
+    const key = e.card_id ? names.card(data.cards.get(e.card_id)) : "Cash / UPI";
+    bySource.set(key, (bySource.get(key) ?? 0) + toPaise(e.amount));
   }
   const categories = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
   const sources = [...bySource.entries()].sort((a, b) => b[1] - a[1]);
 
   return (
     <Panel>
-      <div className="flex items-end justify-between gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total spent</p>
-          <p className="text-2xl font-bold tabular-nums text-slate-900">{formatPaise(total)}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">You paid</p>
+          <p className="text-xl font-bold tabular-nums text-slate-900">{formatPaise(total)}</p>
         </div>
-        <div className="text-right">
+        <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Your share</p>
-          <p className="text-lg font-semibold tabular-nums text-slate-700">{formatPaise(mine)}</p>
+          <p className="text-xl font-semibold tabular-nums text-slate-700">{formatPaise(mine)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Others&apos; share</p>
+          <p className="text-xl font-semibold tabular-nums text-emerald-600">{formatPaise(total - mine)}</p>
         </div>
       </div>
 
@@ -135,10 +136,10 @@ function Summary({ txns, me, data, names }: { txns: Txn[]; me: string; data: Gro
             })}
           </div>
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-slate-500">By card</p>
+            <p className="text-xs font-medium text-slate-500">Paid with</p>
             {sources.map(([label, paise]) => (
               <div key={label} className="flex justify-between gap-2 text-sm">
-                <span className="truncate">💳 {label}</span>
+                <span className="truncate">{label === "Cash / UPI" ? "💵" : "💳"} {label}</span>
                 <span className="shrink-0 tabular-nums text-slate-600">{formatPaise(paise)}</span>
               </div>
             ))}
@@ -149,17 +150,15 @@ function Summary({ txns, me, data, names }: { txns: Txn[]; me: string; data: Gro
   );
 }
 
-function TxnRow({
-  txn,
-  me,
+function ExpenseRow({
+  expense,
   data,
   names,
   open,
   onToggle,
   reload,
 }: {
-  txn: Txn;
-  me: string;
+  expense: Expense;
   data: GroupData;
   names: Names;
   open: boolean;
@@ -168,31 +167,18 @@ function TxnRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const c = category(txn.category);
-  const myShare = toPaise(txn.transaction_splits.find((s) => s.user_id === me)?.amount ?? 0);
-  const amount = toPaise(txn.amount);
-  const canEdit = me === txn.created_by || me === txn.paid_by;
-
-  let relation: { text: string; tone: string };
-  if (txn.paid_by === me) {
-    relation =
-      amount - myShare > 0
-        ? { text: `you lent ${formatPaise(amount - myShare)}`, tone: "text-emerald-600" }
-        : { text: "your expense", tone: "text-slate-500" };
-  } else if (myShare > 0) {
-    relation = { text: `you owe ${formatPaise(myShare)}`, tone: "text-rose-600" };
-  } else {
-    relation = { text: "not involved", tone: "text-slate-400" };
-  }
-
-  const paidWith = txn.card_id ? names.card(data.cards.get(txn.card_id)) : `Cash / UPI by ${names.obj(txn.paid_by)}`;
+  const c = category(expense.category);
+  const amount = toPaise(expense.amount);
+  const toGetBack = amount - myShareOf(expense);
+  const others = expense.expense_shares.filter((s) => s.person_id !== null);
+  const paidWith = expense.card_id ? names.card(data.cards.get(expense.card_id)) : "Cash / UPI";
 
   async function remove() {
-    if (!confirm(`Delete “${txn.merchant}”? It will no longer count in balances.`)) return;
+    if (!confirm(`Delete “${expense.merchant}”? It will no longer count in balances.`)) return;
     setBusy(true);
     setError(null);
     try {
-      await run(supabase().rpc("delete_transaction", { p_id: txn.id }));
+      await run(supabase().from("expenses").delete().eq("id", expense.id));
       reload();
     } catch (e) {
       setError(errorMessage(e));
@@ -207,17 +193,21 @@ function TxnRow({
           {c.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-slate-900">{txn.merchant}</p>
+          <p className="truncate font-medium text-slate-900">{expense.merchant}</p>
           <p className="truncate text-xs text-slate-500">
-            {formatDate(txn.txn_date)} · {paidWith}
+            {formatDate(expense.txn_date)} · {paidWith}
           </p>
           <p className="truncate text-xs text-slate-500">
-            Bought by {names.obj(txn.purchased_by)}
+            {others.length === 0 ? "Only you" : `With ${others.map((s) => names.name(s.person_id)).join(", ")}`}
           </p>
         </div>
         <div className="shrink-0 text-right">
           <p className="font-semibold tabular-nums text-slate-900">{formatPaise(amount)}</p>
-          <p className={cx("text-xs font-medium", relation.tone)}>{relation.text}</p>
+          {toGetBack > 0 ? (
+            <p className="text-xs font-medium text-emerald-600">others owe {formatPaise(toGetBack)}</p>
+          ) : (
+            <p className="text-xs font-medium text-slate-400">your expense</p>
+          )}
         </div>
       </button>
 
@@ -225,35 +215,30 @@ function TxnRow({
         <div className="space-y-3 bg-slate-50 px-4 pb-4 pt-1 text-sm">
           <div>
             <p className="mb-1 text-xs font-medium text-slate-500">
-              Who pays {txn.split_method === "equal" ? "(split equally)" : "(exact amounts)"}
+              Shares {expense.split_method === "equal" ? "(split equally)" : "(exact amounts)"}
             </p>
             <ul className="space-y-0.5">
-              {txn.transaction_splits.map((s) => (
-                <li key={s.user_id} className="flex justify-between">
-                  <span>{names.name(s.user_id)}</span>
+              {expense.expense_shares.map((s) => (
+                <li key={s.person_id ?? "me"} className="flex justify-between">
+                  <span>{names.name(s.person_id)}</span>
                   <span className="tabular-nums">{formatPaise(toPaise(s.amount))}</span>
                 </li>
               ))}
             </ul>
           </div>
           <p className="text-xs text-slate-500">
-            Money from: <span className="font-medium text-slate-700">{names.name(txn.paid_by)}</span> · Added by{" "}
-            {names.obj(txn.created_by)} · {c.label}
+            {c.label} · paid by you with {paidWith}
           </p>
-          {txn.note && <p className="rounded-lg bg-white px-3 py-2 text-slate-700">{txn.note}</p>}
+          {expense.note && <p className="rounded-lg bg-white px-3 py-2 text-slate-700">{expense.note}</p>}
           <ErrorText>{error}</ErrorText>
-          {canEdit ? (
-            <div className="flex gap-2">
-              <LinkButton href={`/groups/${data.group.id}/add?edit=${txn.id}`} variant="secondary">
-                Edit
-              </LinkButton>
-              <Button size="sm" variant="danger" onClick={remove} disabled={busy}>
-                {busy ? "Deleting…" : "Delete"}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400">Only the person who added it or the card owner can edit this.</p>
-          )}
+          <div className="flex gap-2">
+            <LinkButton href={`/groups/${data.group.id}/add?edit=${expense.id}`} variant="secondary">
+              Edit
+            </LinkButton>
+            <Button size="sm" variant="danger" onClick={remove} disabled={busy}>
+              {busy ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
         </div>
       )}
     </li>

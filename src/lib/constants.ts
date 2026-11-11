@@ -22,18 +22,17 @@ export const PAYMENT_METHODS = [
   { key: "other", label: "Other" },
 ] as const;
 
-/** UPI deep link – opens GPay / PhonePe / Paytm on phones. */
-export function upiLink(upiId: string, name: string, amountPaise: number, note: string): string {
-  const params = new URLSearchParams({
-    pa: upiId,
-    pn: name,
-    am: (amountPaise / 100).toFixed(2),
-    cu: "INR",
-    tn: note.slice(0, 50),
-  });
-  return `upi://pay?${params.toString()}`;
+/** Phone number as WhatsApp wants it: digits with country code (India by default). */
+export function whatsappNumber(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  if (digits.length === 10) digits = `91${digits}`;
+  return digits.length >= 8 ? digits : null;
 }
 
-export function whatsappLink(text: string): string {
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+/** Opens WhatsApp with a prefilled message – straight to the person's chat when we have their number. */
+export function whatsappLink(text: string, phone?: string | null): string {
+  const number = whatsappNumber(phone);
+  return `https://wa.me/${number ?? ""}?text=${encodeURIComponent(text)}`;
 }

@@ -1,29 +1,20 @@
 import { run, supabase } from "./supabase";
-import type { Activity, Card, Group, Member, Pair, Settlement, Txn } from "./types";
+import type { Card, Expense, Group, Payment, Person, PersonBalance } from "./types";
 
-/** Group, members and the cards this group can use. */
+/** Group, its people and your cards. */
 export async function loadGroupBasics(groupId: string) {
   const db = supabase();
-  const [group, members, cards, cardGroups] = await Promise.all([
+  const [group, people, cards] = await Promise.all([
     run<Group | null>(db.from("groups").select("*").eq("id", groupId).maybeSingle()),
-    run<Member[]>(
-      db
-        .from("group_members")
-        .select("group_id, user_id, role, is_active, joined_at, profile:profiles(id, full_name, email, upi_id)")
-        .eq("group_id", groupId)
-        .order("joined_at"),
-    ),
+    run<Person[]>(db.from("people").select("*").eq("group_id", groupId).order("created_at")),
     run<Card[]>(db.from("cards").select("*").order("created_at")),
-    run<{ card_id: string }[]>(db.from("card_groups").select("card_id").eq("group_id", groupId)),
   ]);
-  if (!group) throw new Error("Group not found, or you are not a member of it.");
-  const shared = new Set(cardGroups.map((c) => c.card_id));
+  if (!group) throw new Error("Group not found.");
   return {
     group,
-    members,
-    activeMembers: members.filter((m) => m.is_active),
+    people,
     cards: new Map(cards.map((c) => [c.id, c])),
-    sharedCards: cards.filter((c) => shared.has(c.id) && c.is_active),
+    activeCards: cards.filter((c) => c.is_active),
   };
 }
 
@@ -32,53 +23,41 @@ export type GroupBasics = Awaited<ReturnType<typeof loadGroupBasics>>;
 /** Everything the group page shows. */
 export async function loadGroup(groupId: string) {
   const db = supabase();
-  const [basics, txns, settlements, pairs, activity] = await Promise.all([
+  const [basics, expenses, payments, balances] = await Promise.all([
     loadGroupBasics(groupId),
-    run<Txn[]>(
+    run<Expense[]>(
       db
-        .from("transactions")
-        .select("*, transaction_splits(user_id, amount)")
+        .from("expenses")
+        .select("*, expense_shares(person_id, amount)")
         .eq("group_id", groupId)
-        .eq("is_deleted", false)
         .order("txn_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(2000),
     ),
-    run<Settlement[]>(
+    run<Payment[]>(
       db
-        .from("settlements")
+        .from("payments")
         .select("*")
         .eq("group_id", groupId)
-        .eq("is_deleted", false)
+        .order("paid_on", { ascending: false })
         .order("created_at", { ascending: false }),
     ),
-    run<Pair[]>(db.rpc("group_balances", { p_group: groupId })),
-    run<Activity[]>(
-      db.from("activity").select("*").eq("group_id", groupId).order("created_at", { ascending: false }).limit(50),
-    ),
+    run<PersonBalance[]>(db.from("person_balances").select("*").eq("group_id", groupId)),
   ]);
-  return { ...basics, txns, settlements, pairs, activity };
+  return { ...basics, expenses, payments, balances };
 }
 
 export type GroupData = Awaited<ReturnType<typeof loadGroup>>;
 
-/** Name helpers shared by the group screens. */
-export function namer(members: Member[], me: string) {
-  const byId = new Map(members.map((m) => [m.user_id, m]));
-  const fullName = (id: string | null) => (id ? byId.get(id)?.profile?.full_name || "Former member" : "Unknown");
+/** Name helpers for one group. person id null = you. */
+export function namer(people: Person[]) {
+  const byId = new Map(people.map((p) => [p.id, p]));
   return {
-    /** "You" for the current user, otherwise the person's name. */
-    name: (id: string | null) => (id === me ? "You" : fullName(id)),
-    /** Same, but lowercase "you" for the middle of a sentence. */
-    obj: (id: string | null) => (id === me ? "you" : fullName(id)),
-    fullName,
-    profile: (id: string) => byId.get(id)?.profile ?? null,
-    /** "Heet's HDFC Millennia ••1234" / "Your HDFC Millennia ••1234" */
-    card: (card: Card | undefined) => {
-      if (!card) return "Card";
-      const owner = card.owner_id === me ? "Your" : `${fullName(card.owner_id)}'s`;
-      return `${owner} ${card.nickname} ••${card.last_four}`;
-    },
+    name: (id: string | null) => (id === null ? "You" : (byId.get(id)?.name ?? "Removed person")),
+    /** Lowercase "you" for the middle of a sentence. */
+    obj: (id: string | null) => (id === null ? "you" : (byId.get(id)?.name ?? "removed person")),
+    person: (id: string) => byId.get(id) ?? null,
+    card: (card: Card | undefined) => (card ? `${card.nickname} ••${card.last_four}` : "Card"),
   };
 }
 

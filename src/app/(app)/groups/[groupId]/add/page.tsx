@@ -3,36 +3,29 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useUserId } from "@/components/AuthProvider";
 import { ErrorText, Spinner } from "@/components/ui";
 import { loadGroupBasics } from "@/lib/groupData";
 import { run, supabase } from "@/lib/supabase";
-import type { Txn } from "@/lib/types";
+import type { Expense } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 import { ExpenseForm } from "./ExpenseForm";
 
 async function load(groupId: string, editId: string | null) {
-  const [basics, txn] = await Promise.all([
+  const [basics, expense] = await Promise.all([
     loadGroupBasics(groupId),
     editId
-      ? run<Txn | null>(
-          supabase()
-            .from("transactions")
-            .select("*, transaction_splits(user_id, amount)")
-            .eq("id", editId)
-            .eq("is_deleted", false)
-            .maybeSingle(),
+      ? run<Expense | null>(
+          supabase().from("expenses").select("*, expense_shares(person_id, amount)").eq("id", editId).maybeSingle(),
         )
       : Promise.resolve(null),
   ]);
-  if (editId && !txn) throw new Error("This expense no longer exists.");
-  return { basics, txn };
+  if (editId && !expense) throw new Error("This expense no longer exists.");
+  return { basics, expense };
 }
 
 export default function AddExpensePage() {
   const { groupId } = useParams<{ groupId: string }>();
   const editId = useSearchParams().get("edit");
-  const me = useUserId();
   const { data, error } = useAsync(() => load(groupId, editId), `${groupId}/${editId ?? "new"}`);
   // Bumped after each save so the next visit starts with an empty form.
   const [formVersion, setFormVersion] = useState(0);
@@ -49,8 +42,7 @@ export default function AddExpensePage() {
         <ExpenseForm
           key={`${editId ?? "new"}-${formVersion}`}
           basics={data.basics}
-          existing={data.txn}
-          me={me}
+          existing={data.expense}
           onSaved={() => setFormVersion((v) => v + 1)}
         />
       )}

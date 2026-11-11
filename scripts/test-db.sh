@@ -15,6 +15,7 @@ fi
 "${RUN[@]}" "createdb $DB"
 trap '"${RUN[@]}" "dropdb --if-exists $DB" >/dev/null 2>&1 || true' EXIT
 
-for f in supabase/tests/mock_supabase.sql supabase/schema.sql supabase/tests/scenarios.sql; do
+# schema.sql runs twice to prove it can be re-run safely
+for f in supabase/tests/mock_supabase.sql supabase/schema.sql supabase/schema.sql supabase/tests/scenarios.sql; do
   "${RUN[@]}" "${PSQL[*]} -d $DB" < "$f"
 done

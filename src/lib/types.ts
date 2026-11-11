@@ -5,23 +5,6 @@ export type Profile = {
   upi_id: string | null;
 };
 
-export type Group = {
-  id: string;
-  name: string;
-  invite_code: string;
-  created_by: string;
-  created_at: string;
-};
-
-export type Member = {
-  group_id: string;
-  user_id: string;
-  role: "admin" | "member";
-  is_active: boolean;
-  joined_at: string;
-  profile: Profile | null;
-};
-
 export type Card = {
   id: string;
   owner_id: string;
@@ -34,15 +17,29 @@ export type Card = {
   created_at: string;
 };
 
-export type Split = { user_id: string; amount: number };
+export type Group = {
+  id: string;
+  name: string;
+  created_at: string;
+};
 
-export type Txn = {
+/** Someone in a group – just a name, no account. */
+export type Person = {
+  id: string;
+  group_id: string;
+  name: string;
+  phone: string | null;
+  created_at: string;
+};
+
+/** person_id null = your own share. */
+export type Share = { person_id: string | null; amount: number };
+
+/** Always paid by you (card_id null = cash / UPI). */
+export type Expense = {
   id: string;
   group_id: string;
   card_id: string | null;
-  paid_by: string;
-  purchased_by: string | null;
-  created_by: string;
   merchant: string;
   note: string;
   category: string;
@@ -50,40 +47,28 @@ export type Txn = {
   split_method: "equal" | "exact";
   txn_date: string;
   created_at: string;
-  transaction_splits: Split[];
+  expense_shares: Share[];
 };
 
-export type Settlement = {
+/** Money a person paid back to you. */
+export type Payment = {
   id: string;
   group_id: string;
-  from_user: string;
-  to_user: string;
+  person_id: string;
   amount: number;
   method: string;
   note: string;
-  created_by: string;
+  paid_on: string;
   created_at: string;
 };
 
-/** from_user owes to_user `amount` rupees. */
-export type Pair = { from_user: string; to_user: string; amount: number };
-
-export type Activity = {
-  id: number;
+/** balance > 0 → they still owe you (rupees). */
+export type PersonBalance = {
+  person_id: string;
   group_id: string;
-  actor_id: string | null;
-  action: string;
-  label: string;
-  amount: number | null;
-  created_at: string;
-};
-
-/** amount > 0 → they owe me, amount < 0 → I owe them (rupees). */
-export type MyBalance = {
-  group_id: string;
-  group_name: string;
-  other_user: string;
-  other_name: string;
-  other_upi: string | null;
-  amount: number;
+  name: string;
+  phone: string | null;
+  owed: number;
+  paid: number;
+  balance: number;
 };

@@ -64,7 +64,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         <Field label="Email">
           <Input value={profile.email ?? ""} disabled />
         </Field>
-        <Field label="UPI ID" hint="Friends get a one-tap “Pay via UPI” button when they owe you.">
+        <Field label="UPI ID" hint="Added to your WhatsApp reminders so people know where to pay.">
           <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="yourname@okhdfcbank" autoCapitalize="none" />
         </Field>
         <ErrorText>{error}</ErrorText>

@@ -7,7 +7,7 @@ import type { Card } from "@/lib/types";
 
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
-export function CardForm({ me, card, onDone }: { me: string; card?: Card; onDone: (saved: boolean) => void }) {
+export function CardForm({ card, onDone }: { card?: Card; onDone: (saved: boolean) => void }) {
   const [nickname, setNickname] = useState(card?.nickname ?? "");
   const [bank, setBank] = useState(card?.bank_name ?? "");
   const [lastFour, setLastFour] = useState(card?.last_four ?? "");
@@ -30,7 +30,7 @@ export function CardForm({ me, card, onDone }: { me: string; card?: Card; onDone
     };
     try {
       if (card) await run(supabase().from("cards").update(values).eq("id", card.id));
-      else await run(supabase().from("cards").insert({ ...values, owner_id: me }));
+      else await run(supabase().from("cards").insert(values));
       onDone(true);
     } catch (err) {
       setError(errorMessage(err));

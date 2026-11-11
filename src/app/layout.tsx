@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CardMates",
-  description: "Shared credit card expenses for friends – who used whose card, and who owes whom.",
+  description: "Track the expenses you pay for others and who owes you money.",
 };
 
 export const viewport: Viewport = {

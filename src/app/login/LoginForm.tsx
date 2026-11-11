@@ -72,10 +72,10 @@ export function LoginForm() {
       </h1>
       <p className="mt-1 text-sm text-slate-500">
         {mode === "signUp"
-          ? "Track who used whose card and who owes whom."
+          ? "Track what you paid for others and who owes you."
           : mode === "forgot"
             ? "We'll email you a link to set a new password."
-            : "Sign in to see your groups and balances."}
+            : "Sign in to see who owes you."}
       </p>
 
       <form onSubmit={submit} className="mt-5 space-y-4">
