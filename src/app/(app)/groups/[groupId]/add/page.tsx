@@ -26,8 +26,8 @@ async function load(groupId: string, editId: string | null) {
 export default function AddExpensePage() {
   const { groupId } = useParams<{ groupId: string }>();
   const editId = useSearchParams().get("edit");
-  const { data, error } = useAsync(() => load(groupId, editId), `${groupId}/${editId ?? "new"}`);
-  // Bumped after each save so the next visit starts with an empty form.
+  const { data, error, loading, reload } = useAsync(() => load(groupId, editId), `${groupId}/${editId ?? "new"}`);
+  // Bumped after each save so the next visit starts with a fresh form.
   const [formVersion, setFormVersion] = useState(0);
 
   return (
@@ -36,14 +36,19 @@ export default function AddExpensePage() {
         ← {data?.basics.group.name ?? "Back"}
       </Link>
       <h1 className="mb-4 mt-1 text-2xl font-bold text-slate-900">{editId ? "Edit expense" : "Add expense"}</h1>
-      {!data ? (
+      {!data || loading ? (
         error ? <ErrorText>{error}</ErrorText> : <Spinner />
       ) : (
+        // This page stays mounted (hidden) after navigating away, so the form is
+        // re-created whenever the saved expense changes, never reusing old values.
         <ExpenseForm
-          key={`${editId ?? "new"}-${formVersion}`}
+          key={`${editId ?? "new"}-${formVersion}-${data.expense?.updated_at ?? ""}`}
           basics={data.basics}
           existing={data.expense}
-          onSaved={() => setFormVersion((v) => v + 1)}
+          onSaved={() => {
+            setFormVersion((v) => v + 1);
+            reload(); // fetch the saved expense (and any people added in the form)
+          }}
         />
       )}
     </div>

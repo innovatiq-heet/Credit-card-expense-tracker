@@ -1,4 +1,4 @@
-import { run, supabase } from "./supabase";
+import { run, runAll, supabase } from "./supabase";
 import type { Card, Expense, Group, Payment, Person, PersonBalance } from "./types";
 
 /** Group, its people and your cards. */
@@ -6,7 +6,7 @@ export async function loadGroupBasics(groupId: string) {
   const db = supabase();
   const [group, people, cards] = await Promise.all([
     run<Group | null>(db.from("groups").select("*").eq("id", groupId).maybeSingle()),
-    run<Person[]>(db.from("people").select("*").eq("group_id", groupId).order("created_at")),
+    runAll<Person>(() => db.from("people").select("*").eq("group_id", groupId).order("created_at").order("id")),
     run<Card[]>(db.from("cards").select("*").order("created_at")),
   ]);
   if (!group) throw new Error("Group not found.");
@@ -25,24 +25,25 @@ export async function loadGroup(groupId: string) {
   const db = supabase();
   const [basics, expenses, payments, balances] = await Promise.all([
     loadGroupBasics(groupId),
-    run<Expense[]>(
+    runAll<Expense>(() =>
       db
         .from("expenses")
         .select("*, expense_shares(person_id, amount)")
         .eq("group_id", groupId)
         .order("txn_date", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(2000),
+        .order("id"),
     ),
-    run<Payment[]>(
+    runAll<Payment>(() =>
       db
         .from("payments")
         .select("*")
         .eq("group_id", groupId)
         .order("paid_on", { ascending: false })
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .order("id"),
     ),
-    run<PersonBalance[]>(db.from("person_balances").select("*").eq("group_id", groupId)),
+    runAll<PersonBalance>(() => db.from("person_balances").select("*").eq("group_id", groupId).order("person_id")),
   ]);
   return { ...basics, expenses, payments, balances };
 }

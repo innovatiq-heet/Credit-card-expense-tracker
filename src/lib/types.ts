@@ -47,6 +47,7 @@ export type Expense = {
   split_method: "equal" | "exact";
   txn_date: string;
   created_at: string;
+  updated_at: string;
   expense_shares: Share[];
 };
 

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useUserId } from "@/components/AuthProvider";
 import { Button, Empty, ErrorText, Input, Money, PageHeader, Panel, SectionTitle, Spinner } from "@/components/ui";
 import { toPaise } from "@/lib/money";
-import { errorMessage, run, supabase } from "@/lib/supabase";
+import { errorMessage, run, runAll, supabase } from "@/lib/supabase";
 import type { Group, PersonBalance } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 
@@ -14,7 +14,7 @@ async function loadGroups() {
   const db = supabase();
   const [groups, balances] = await Promise.all([
     run<Group[]>(db.from("groups").select("*").order("created_at", { ascending: false })),
-    run<PersonBalance[]>(db.from("person_balances").select("*")),
+    runAll<PersonBalance>(() => db.from("person_balances").select("*").order("person_id")),
   ]);
   return groups.map((g) => {
     const mine = balances.filter((b) => b.group_id === g.id);

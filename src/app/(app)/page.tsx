@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth, useUserId } from "@/components/AuthProvider";
 import { Avatar, Empty, ErrorText, LinkButton, Money, Panel, SectionTitle, Spinner } from "@/components/ui";
 import { formatPaise, toPaise } from "@/lib/money";
-import { run, supabase } from "@/lib/supabase";
+import { run, runAll, supabase } from "@/lib/supabase";
 import type { Group, PersonBalance } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 
@@ -12,7 +12,7 @@ async function loadDashboard() {
   const db = supabase();
   const [groups, balances] = await Promise.all([
     run<Group[]>(db.from("groups").select("*").order("created_at", { ascending: false })),
-    run<PersonBalance[]>(db.from("person_balances").select("*")),
+    runAll<PersonBalance>(() => db.from("person_balances").select("*").order("person_id")),
   ]);
   return { groups, balances };
 }

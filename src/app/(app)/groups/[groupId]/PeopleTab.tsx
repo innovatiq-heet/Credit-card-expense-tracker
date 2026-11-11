@@ -125,7 +125,12 @@ function PersonCard({ balance, data, reload }: { balance: PersonBalance; data: G
       await run(supabase().from("people").delete().eq("id", balance.person_id));
       reload();
     } catch (e) {
-      setError(errorMessage(e));
+      const message = errorMessage(e);
+      setError(
+        message.includes("foreign key")
+          ? `${balance.name} is part of an expense. Edit or delete those expenses first.`
+          : message,
+      );
       setBusy(false);
     }
   }

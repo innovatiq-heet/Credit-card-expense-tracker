@@ -5,7 +5,7 @@ import { useUserId } from "@/components/AuthProvider";
 import { Badge, Button, cx, Empty, ErrorText, PageHeader, Panel, Spinner } from "@/components/ui";
 import { currentCycle, formatDate } from "@/lib/dates";
 import { formatPaise, sumPaise, toPaise } from "@/lib/money";
-import { errorMessage, run, supabase } from "@/lib/supabase";
+import { errorMessage, run, runAll, supabase } from "@/lib/supabase";
 import type { Card, Share } from "@/lib/types";
 import { useAsync } from "@/lib/useAsync";
 import { CardForm } from "./CardForm";
@@ -21,14 +21,15 @@ async function loadCards() {
   const earliest = [...cycles.values()].map((c) => c.start).sort()[0];
   const [expenses, people] = earliest
     ? await Promise.all([
-        run<CycleExpense[]>(
+        runAll<CycleExpense>(() =>
           db
             .from("expenses")
             .select("id, card_id, amount, txn_date, expense_shares(person_id, amount)")
             .in("card_id", cards.map((c) => c.id))
-            .gte("txn_date", earliest),
+            .gte("txn_date", earliest)
+            .order("id"),
         ),
-        run<{ id: string; name: string }[]>(db.from("people").select("id, name")),
+        runAll<{ id: string; name: string }>(() => db.from("people").select("id, name").order("id")),
       ])
     : [[], []];
 

@@ -37,7 +37,10 @@ export function ExpenseForm({ basics, existing, onSaved }: Props) {
   const [amountText, setAmountText] = useState(existing ? String(existing.amount) : "");
   const [merchant, setMerchant] = useState(existing?.merchant ?? "");
   const [source, setSource] = useState(existing ? (existing.card_id ?? CASH) : (cardOptions[0]?.id ?? CASH));
-  const [date, setDate] = useState(existing?.txn_date ?? todayISO());
+  // A new expense defaults to today – worked out on every render, so a form
+  // left open overnight doesn't keep yesterday's date.
+  const [pickedDate, setDate] = useState<string | null>(existing?.txn_date ?? null);
+  const date = pickedDate ?? todayISO();
   const [cat, setCat] = useState(existing?.category ?? "shopping");
   const [method, setMethod] = useState<"equal" | "exact">(existing?.split_method ?? "equal");
   const [selected, setSelected] = useState<Set<string>>(
@@ -227,9 +230,15 @@ export function ExpenseForm({ basics, existing, onSaved }: Props) {
                 type="button"
                 key={m}
                 onClick={() => {
+                  if (m === method) return;
                   setMethod(m);
-                  if (m === "exact" && Object.keys(exact).length === 0) {
+                  if (m === "exact") {
+                    // Start from the equal split of the people ticked right now.
                     setExact(Object.fromEntries([...equalShares.entries()].map(([k, p]) => [k, (p / 100).toString()])));
+                  } else {
+                    // Tick exactly the people who had an amount.
+                    const withAmount = keys.filter((k) => (exactShares.get(k) ?? 0) > 0);
+                    if (withAmount.length > 0) setSelected(new Set(withAmount));
                   }
                 }}
                 className={cx("rounded-lg px-3 py-1", method === m ? "bg-white font-medium shadow-sm" : "text-slate-500")}

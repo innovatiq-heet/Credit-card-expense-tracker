@@ -30,6 +30,22 @@ export async function run<T = unknown>(query: PromiseLike<QueryResult>): Promise
   return data as T;
 }
 
+type RangeQuery = { range: (from: number, to: number) => PromiseLike<QueryResult> };
+
+/**
+ * Load every row of a query. Supabase returns at most 1,000 rows per request
+ * (the project's "Max rows" setting), so read page by page until a short page.
+ * The query must have a stable order.
+ */
+export async function runAll<T>(makeQuery: () => RangeQuery, pageSize = 1000): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await run<T[]>(makeQuery().range(from, from + pageSize - 1));
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
