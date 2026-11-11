@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ErrorText, Spinner } from "@/components/ui";
 import { loadGroupBasics } from "@/lib/groupData";
@@ -26,6 +26,9 @@ async function load(groupId: string, editId: string | null) {
 export default function AddExpensePage() {
   const { groupId } = useParams<{ groupId: string }>();
   const editId = useSearchParams().get("edit");
+  // Changes on every in-app visit (link click / router.push), so the form starts
+  // fresh each time instead of showing an abandoned draft. Browser Back keeps it.
+  const { bfcacheId } = useRouter();
   const { data, error, loading, reload } = useAsync(() => load(groupId, editId), `${groupId}/${editId ?? "new"}`);
   // Bumped after each save so the next visit starts with a fresh form.
   const [formVersion, setFormVersion] = useState(0);
@@ -39,10 +42,10 @@ export default function AddExpensePage() {
       {!data || loading ? (
         error ? <ErrorText>{error}</ErrorText> : <Spinner />
       ) : (
-        // This page stays mounted (hidden) after navigating away, so the form is
-        // re-created whenever the saved expense changes, never reusing old values.
+        // Next.js keeps this page mounted (hidden) after you leave it, so the form is
+        // re-created on each visit and whenever the saved expense changes.
         <ExpenseForm
-          key={`${editId ?? "new"}-${formVersion}-${data.expense?.updated_at ?? ""}`}
+          key={`${bfcacheId}-${editId ?? "new"}-${formVersion}-${data.expense?.updated_at ?? ""}`}
           basics={data.basics}
           existing={data.expense}
           onSaved={() => {

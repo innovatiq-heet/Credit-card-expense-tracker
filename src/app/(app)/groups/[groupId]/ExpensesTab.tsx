@@ -14,12 +14,15 @@ type Props = { data: GroupData; names: Names; reload: () => void };
 const myShareOf = (e: Expense) => toPaise(e.expense_shares.find((s) => s.person_id === null)?.amount ?? 0);
 
 export function ExpensesTab({ data, names, reload }: Props) {
-  const [month, setMonth] = useState("all");
-  const [source, setSource] = useState("all"); // "all" | "cash" | card id
+  const [monthChoice, setMonth] = useState("all");
+  const [sourceChoice, setSource] = useState("all"); // "all" | "cash" | card id
   const [openId, setOpenId] = useState<string | null>(null);
 
   const months = [...new Set(data.expenses.map((e) => monthKey(e.txn_date)))];
   const usedCardIds = [...new Set(data.expenses.flatMap((e) => (e.card_id ? [e.card_id] : [])))];
+  // If the chosen month/card has no expenses left (e.g. its last one was deleted), show everything.
+  const month = months.includes(monthChoice) ? monthChoice : "all";
+  const source = sourceChoice === "cash" || usedCardIds.includes(sourceChoice) ? sourceChoice : "all";
 
   const visible = data.expenses.filter(
     (e) =>

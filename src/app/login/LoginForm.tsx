@@ -9,7 +9,17 @@ import { errorMessage, supabase } from "@/lib/supabase";
 
 type Mode = "signIn" | "signUp" | "forgot";
 
+/**
+ * Next.js keeps this page mounted (hidden) after you sign in. Keying the form on
+ * bfcacheId gives a fresh, empty form every time the login page is opened again,
+ * e.g. after signing out.
+ */
 export function LoginForm() {
+  const { bfcacheId } = useRouter();
+  return <LoginFormFields key={bfcacheId} />;
+}
+
+function LoginFormFields() {
   const { status, problem } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
@@ -38,6 +48,7 @@ export function LoginForm() {
       if (mode === "signIn") {
         const { error } = await auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setPassword(""); // never keep the password around after signing in
       } else if (mode === "signUp") {
         const { data, error } = await auth.signUp({
           email,
@@ -48,6 +59,7 @@ export function LoginForm() {
           },
         });
         if (error) throw error;
+        setPassword("");
         if (!data.session) setInfo("Account created! Check your email to confirm it, then sign in.");
       } else {
         const { error } = await auth.resetPasswordForEmail(email, {
