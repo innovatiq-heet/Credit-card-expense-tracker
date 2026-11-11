@@ -62,10 +62,10 @@ export default function GroupPage() {
         }
       />
 
-      {/* Phones: floating button above the bottom navigation */}
+      {/* Phones: floating button just above the floating tab bar */}
       <Link
         href={`/groups/${groupId}/add`}
-        className="fixed bottom-20 right-4 z-30 rounded-full bg-indigo-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 sm:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)_+_5.75rem)] right-4 z-30 rounded-full bg-indigo-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 sm:hidden"
       >
         + Add expense
       </Link>
